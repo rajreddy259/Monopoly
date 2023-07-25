@@ -1,6 +1,7 @@
 import pygame
 from pygame.locals import *
 import random
+from collections import deque
 
 from pygame.sprite import Group
 
@@ -51,6 +52,10 @@ community_chest_cards = [
     "You have won second prize in a beauty contest. Collect $10",
     "You inherit $100"
 ]
+
+cc_queue = deque(community_chest_cards)
+
+
 chance_cards = [
     "Advance to Boardwalk",
     "Advance to Go (Collect $200)",
@@ -70,11 +75,109 @@ chance_cards = [
     "Your building loan matures. Collect $150"
 ]
 
+chance_queue = deque(chance_cards)
 
-#intialize Player class
-class Player (pygame.sprite.Sprite):
-    def __init__(self, x,  y):
+# hashmap of locations
+locations = {}
+locations["GO"] = 0
+locations["Mediterranean Avenue"] = 0
+locations["Community Chest #1"] = 0
+locations["Baltic Avenue"] = 0
+locations["Income Tax"] = 0
+locations["Reading Railroad"] = 0
+locations["Oriental Avenue"] = 0
+locations["Chance #1"] = 0
+locations["Vermont Ave"] = 0
+locations["Connecticut Avenue"] = 0
+locations["In Jail/Just Visiting"] = 0
+locations["St.Charles Place"] = 0
+locations["Electric Company"] = 0
+locations["States Avenue"] = 0
+locations["Virginia Avenue"] = 0
+locations["Pennsylvania Railroad"] = 0
+locations["St.James Place"] = 0
+locations["Community Chest #2"] = 0
+locations["Tennessee Avenue"] = 0
+locations["New York Avenue"] = 0
+locations["Free Parking"] = 0
+locations["Kentucky Avenue"] = 0
+locations["Chance #2"] = 0
+locations["Indiana Avenue"] = 0
+locations["Illinois Avenue"] = 0
+locations["B&O Railroad"] = 0
+locations["Atlantic Avenue"] = 0
+locations["Ventnor Avenue"] = 0
+locations["Water Works"] = 0
+locations["Marvin Gardens"] = 0
+locations["Go To Jail!"] = 0
+locations["Pacific Avenue"] = 0
+locations["North Carolina Avenue"] = 0
+locations["Community Chest #3"] = 0
+locations["Pennsylvania Avenue"] = 0
+locations["Short Line"] = 0
+locations["Chance"] = 0
+locations["Park Place"] = 0
+locations["Luxury Tax"] = 0
+locations["Boardwalk"] = 0
+
+class Player(pygame.sprite.Sprite):
+    def __init__(self, x, y):
         pygame.sprite.Sprite.__init__(self)
+        self.image = player_img
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
         self.position = 0
-        self.moves = 0;
+        self.moves = 0
         self.get_out_of_jail_cards = 0
+
+# Create a Player object
+player = Player(432, 936 - 48)
+
+# Function to draw the player on the screen
+def draw_player():
+    screen.blit(player.image, player.rect)
+
+# Main game loop
+running = True
+while running:
+    screen.blit(bg, (0, 0))
+
+    for event in pygame.event.get():
+        if event.type == QUIT:
+            running = False
+
+    # Roll the dice and move the player
+    if pygame.key.get_pressed()[K_SPACE]:
+        die1 = random.randint(1, 6)
+        die2 = random.randint(1, 6)
+        total_moves = die1 + die2
+
+        # Update player position and handle board wrap-around
+        player.position = (player.position + total_moves) % len(spaces)
+
+        # Increment the number of moves
+        player.moves += 1
+
+        # Handle landing on Community Chest and Chance spaces
+        current_space = spaces[player.position]
+        if current_space == "Community Chest":
+            # Draw a Community Chest card and process it
+            card = cc_queue.popleft()
+            cc_queue.append(card)  # Put the card back to the bottom of the deck
+            print(f"Community Chest Card: {card}")
+            # Add your code to process the Community Chest card here
+
+        elif current_space == "Chance":
+            # Draw a Chance card and process it
+            card = chance_queue.popleft()
+            chance_queue.append(card)  # Put the card back to the bottom of the deck
+            print(f"Chance Card: {card}")
+            # Add your code to process the Chance card here
+
+    # Draw the player on the screen
+    draw_player()
+
+    pygame.display.update()
+    clock.tick(fps)
+
+pygame.quit()
