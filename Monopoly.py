@@ -1,6 +1,9 @@
 import pygame
 from pygame.locals import *
 import random
+import pyautogui
+import time
+
 from collections import deque
 
 from pygame.sprite import Group
@@ -19,21 +22,32 @@ screen = pygame.display.set_mode((screen_width, screen_height))
 pygame.display.set_caption('Monopoly')
 
 #define font
-font = pygame.font.SysFont('Bauhaus 93', 60)
+font = pygame.font.SysFont('Bauhaus 93', 30)
+smaller_font = pygame.font.SysFont('Bauhaus 93', 20)
+semi_font = pygame.font.SysFont('Bauhaus 93', 25)
 
 #define colors
 white = (255, 255, 255)
 
-#load images
-bg = pygame.image.load('assets/monopoly.png')
+# load images
+bg = pygame.image.load('assets/black.jpg')
 player_img = pygame.image.load('assets/car.png')
 dice_img = pygame.image.load('assets/dice.png')
+
+# Reduce the size of the images
+scaled_player_img = pygame.transform.scale(player_img, (player_img.get_width() // 2, player_img.get_height() // 2))
+scaled_dice_img = pygame.transform.scale(dice_img, (dice_img.get_width() // 2, dice_img.get_height() // 2))
+
+
 
 # set game variables
 position = 0
 moves = 0
 landing = []
 get_out_of_jail_cards = 0
+community_chest_card = ""
+chance_card = ""
+community_chest_card_text = "Community Chest Card:\n" + community_chest_card
 community_chest_cards = [
     "Advance to Go (Collect $200)",
     "Bank error in your favor. Collect $200",
@@ -120,10 +134,19 @@ locations["Park Place"] = 0
 locations["Luxury Tax"] = 0
 locations["Boardwalk"] = 0
 
+space_counts = {space: 0 for space in locations.keys()}
+
+
+def draw_text(text, font, text_col, x, y):
+    img = font.render(text, True, text_col)
+    screen.blit(img, (x, y))
+
+
+
 class Player(pygame.sprite.Sprite):
     def __init__(self, x, y):
         pygame.sprite.Sprite.__init__(self)
-        self.image = player_img
+        self.image = scaled_player_img
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
         self.position = 0
@@ -137,47 +160,156 @@ player = Player(432, 936 - 48)
 def draw_player():
     screen.blit(player.image, player.rect)
 
-# Main game loop
-running = True
-while running:
-    screen.blit(bg, (0, 0))
 
-    for event in pygame.event.get():
-        if event.type == QUIT:
-            running = False
+in_jail = False
+# Function to draw buttons on the screen
+def draw_buttons():
+    # Draw Dice button
+    dice_button_rect = pygame.draw.rect(screen, white, (50, 800, 100, 40))  # Width: 100, Height: 40
+    draw_text("Roll Dice", font, (0, 0, 0), screen, dice_button_rect.centerx-40, dice_button_rect.centery-15)
+
+    # Draw Community Chest button
+    cc_button_rect = pygame.draw.rect(screen, white, (200, 800, 130, 40))  # Width: 130, Height: 40
+    draw_text("C Chest", font, (0, 0, 0), screen, cc_button_rect.centerx-55, cc_button_rect.centery-15)
+
+    # Draw Chance button
+    chance_button_rect = pygame.draw.rect(screen, white, (600, 800, 100, 40))  # Width: 100, Height: 40
+    draw_text("Chance", font, (0, 0, 0), screen, chance_button_rect.centerx-35, chance_button_rect.centery-15)
+
+
+
+# Function to draw text on the screen
+def draw_text(text, font, color, surface, x, y):
+    lines = text.split('\n')
+    line_height = font.size("")[1]  # Get the height of a single line of text
+    for i, line in enumerate(lines):
+        text_obj = font.render(line, True, color)
+        text_rect = text_obj.get_rect()
+        text_rect.topleft = (x, y + i * line_height)  # Adjust vertical spacing using line_height
+        surface.blit(text_obj, text_rect)
+
+
+def simulate_roll():
+    global die1, die2, space_counts
 
     # Roll the dice and move the player
-    if pygame.key.get_pressed()[K_SPACE]:
-        die1 = random.randint(1, 6)
-        die2 = random.randint(1, 6)
-        total_moves = die1 + die2
+    die1 = random.randint(1, 6)
+    die2 = random.randint(1, 6)
+    total_moves = die1 + die2
 
-        # Update player position and handle board wrap-around
-        player.position = (player.position + total_moves) % len(spaces)
+    # Update player position and handle board wrap-around
+    player.position = (player.position + total_moves) % len(locations)
 
-        # Increment the number of moves
-        player.moves += 1
+    # Increment the number of moves
+    player.moves += total_moves
 
-        # Handle landing on Community Chest and Chance spaces
-        current_space = spaces[player.position]
-        if current_space == "Community Chest":
-            # Draw a Community Chest card and process it
-            card = cc_queue.popleft()
-            cc_queue.append(card)  # Put the card back to the bottom of the deck
-            print(f"Community Chest Card: {card}")
-            # Add your code to process the Community Chest card here
+    # Update space counts
+    current_space = list(locations.keys())[player.position]
+    space_counts[current_space] += 1
 
-        elif current_space == "Chance":
-            # Draw a Chance card and process it
-            card = chance_queue.popleft()
-            chance_queue.append(card)  # Put the card back to the bottom of the deck
-            print(f"Chance Card: {card}")
-            # Add your code to process the Chance card here
+# Main game loop
+running = True
+die1 = 0
+die2 = 0
 
-    # Draw the player on the screen
-    draw_player()
+for _ in range(1000):
+    # Reset player position and moves for each iteration
+    player.position = 0
+    player.moves = 0
+    in_jail = False
+    while running:
+        screen.fill((0, 0, 0))
 
-    pygame.display.update()
-    clock.tick(fps)
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                running = False
+            elif event.type == MOUSEBUTTONDOWN:
+                
+                if 50 <= event.pos[0] <= 200 and 800 <= event.pos[1] <= 850:
+                    # if not in_jail:  # Only roll the dice if the player is not in jail
+
+                        die1 = random.randint(1, 6)
+                        die2 = random.randint(1, 6)
+                        total_moves = die1 + die2
+
+                        # Update player position and handle board wrap-around
+                        player.position = (player.position + total_moves) % len(locations)
+
+                        # Increment the number of moves
+                        player.moves += 1
+
+                        current_space = list(locations.keys())[player.position]
+                        space_counts[current_space] += 1
+
+                        # Handle landing on Community Chest and Chance spaces
+                        current_space = list(locations.keys())[player.position]
+                        if "Community Chest" in current_space:
+                            # Draw a Community Chest card and process it
+                            card = cc_queue.popleft()
+                            cc_queue.append(card)  # Put the card back to the bottom of the deck
+                            print(f"Community Chest Card: {card}")
+                            # Add your code to process the Community Chest card here
+                            if "Go to Jail" in card:
+                                in_jail = True
+
+                        elif "Chance" in current_space:
+                            # Draw a Chance card and process it
+                            card = chance_queue.popleft()
+                            chance_queue.append(card)  # Put the card back to the bottom of the deck
+                            print(f"Chance Card: {card}")
+                            # Add your code to process the Chance card here
+                            if "Go to Jail" in card:
+                                in_jail = True
+
+                elif 250 <= event.pos[0] <= 450 and 800 <= event.pos[1] <= 850:
+                    # if not in_jail:  # Only draw Community Chest card if not in jail
+                        # Draw a Community Chest card and process it
+                        community_chest_card = cc_queue.popleft()
+                        cc_queue.append(community_chest_card)  # Put the card back to the bottom of the deck
+                        print(f"Community Chest Card: {community_chest_card}")
+                        # Add your code to process the Community Chest card here
+                        if "Go to Jail" in community_chest_card:
+                            in_jail = True
+                            get_out_of_jail_cards = False
+                        if "Get Out of Jail Free" in community_chest_card:
+                            get_out_of_jail_cards = True
+
+                elif 500 <= event.pos[0] <= 650 and 800 <= event.pos[1] <= 850:
+                    # if not in_jail:  # Only draw Chance card if not in jail
+                        # Draw a Chance card and process it
+                        chance_card = chance_queue.popleft()
+                        chance_queue.append(chance_card)  # Put the card back to the bottom of the deck
+                        print(f"Chance Card: {chance_card}")
+                        # Add your code to process the Chance card here
+                        if "Go to Jail" in chance_card:
+                            in_jail = True
+                            get_out_of_jail_cards = False
+                        if "Get Out of Jail Free" in chance_card:
+                            get_out_of_jail_cards = True
+
+                elif 700 <= event.pos[0] <= 800 and 800 <= event.pos[1] <= 850:
+                    # Toggle In Jail text (Simple Yes/No)
+                    in_jail = not in_jail
+
+        # Draw buttons on the screen
+        draw_buttons()
+
+        # Draw text on the screen
+        draw_text("Position: " + list(locations.keys())[player.position], font, white, screen, 10, 50)
+        draw_text("Dice: " + str(die1 + die2), font, white, screen, 10, 150)
+        draw_text("Moves: " + str(player.moves), font, white, screen, 10, 250)
+        draw_text("In Jail: " + ("Yes" if in_jail else "No"), font, white, screen, 10, 350)
+        draw_text("Community Chest Card: ", font, white, screen, 10, 450)
+        draw_text(community_chest_card, smaller_font, white, screen, 10, 475)
+        draw_text("Chance Card: ", font, white, screen, 10, 550)
+        draw_text(chance_card, smaller_font, white, screen, 10, 575)
+        draw_text("Get Out of Jail Free Cards: " + ("Yes" if get_out_of_jail_cards else "No"), font, white, screen, 10, 650)
+        draw_text("Spaces and Landings:", smaller_font, white, screen, 350, 50)
+        space_counts_text = "\n".join([f"{space}: {count}" for space, count in space_counts.items()])
+        draw_text(space_counts_text, smaller_font, white, screen, 350, 100)
+
+      
+        pygame.display.update()
+        clock.tick(fps)
 
 pygame.quit()
